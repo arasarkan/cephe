@@ -18,10 +18,11 @@ from . import geometry
 STEP = 2.0          # px between samples along a line
 ON = 2              # px either side of the line still counted as "on" it
 OFF = (5, 6, 7, 8)  # px either side where the texture beside the line is measured
+PARTNER = 7         # px: a parallel drawn line this close makes the two one band (see check)
 RATIO = 1.6         # an edge on the line must be this much stronger than beside it ...
 FLOOR = 0.035       # ... and at least this strong (luminance 0..1, Sobel / 8)
 WINDOW = 7          # samples smoothed along a line (~14 px), so single noisy samples don't decide
-GOOD, FAIR = 0.88, 0.80  # from past renders: blurry/drifted ones scored 0.75-0.82, sharp ones 0.88-0.97
+GOOD, FAIR = 0.90, 0.84  # from ~50 past renders (close double lines as bands): drifted or blurry 0.78-0.88, sharp 0.90-0.98
 
 
 def _gradients(img, size):
@@ -73,9 +74,22 @@ def check(view, scale, render):
         return np.abs(ndimage.map_coordinates(gx, c, order=1) * nx + ndimage.map_coordinates(gy, c, order=1) * ny)
 
     on = np.max([across(d) for d in range(-ON, ON + 1)], axis=0)
-    # beside the line, but not where another drawn line runs (double frame lines, mullions)
     control, _ = geometry.rasterize(view, scale)
-    near_line = ndimage.distance_transform_edt(np.asarray(control.convert("L")) == 0)
+    lines = np.asarray(control.convert("L")) > 0
+    near_line = ndimage.distance_transform_edt(~lines)
+    # Two drawn lines a few px apart (a band, a frame, a sill) often come out as one band with one strong
+    # edge: an edge anywhere between this line and its close neighbor counts for both.
+    reach = np.arange(-PARTNER, PARTNER + 1)
+    for s in (-1, 1):
+        partner = np.zeros(x.size)
+        for d in range(PARTNER, ON, -1):  # nearest partner wins
+            hitp = ndimage.map_coordinates(lines.astype(np.float32), [y + ny * d * s, x + nx * d * s], order=0) > 0
+            partner = np.where(hitp, d, partner)
+        if partner.any():
+            band = np.max([np.where((partner >= abs(d)) & (np.sign(d) == s), across(d), 0)
+                           for d in reach if d * s > ON], axis=0)
+            on = np.maximum(on, band)
+    # beside the line, but not where another drawn line runs (double frame lines, mullions)
     off_vals = []
     for d in OFF:
         for s in (-1, 1):

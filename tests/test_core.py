@@ -200,3 +200,40 @@ def test_fidelity_follows_drawing(sheet, tmp_path):
     assert fidelity.check(v, scale, big)["score"] > 0.9
     out = fidelity.drift_map(big, bad["misses"], control.size, tmp_path / "drift.png")
     assert Image.open(out).size == big.size
+
+
+def test_harmonize_leaves_other_colors_in_a_material_zone(tmp_path):
+    """A beige band crossing a brick zone stays beige; only the brick moves toward the hero's brick."""
+    import numpy as np
+    from PIL import Image
+    from core.harmonize import _srgb_to_lab, harmonize
+    img = np.zeros((200, 200, 3), np.uint8)
+    img[:] = (190, 75, 45)          # brick
+    img[95:105] = (225, 210, 180)   # beige band inside the brick zone
+    hero = np.zeros_like(img)
+    hero[:] = (175, 85, 60)         # the hero's brick: a bit browner
+    Image.fromarray(img).save(tmp_path / "v.png")
+    Image.fromarray(hero).save(tmp_path / "h.png")
+    zone = np.ones((200, 200), bool)
+    harmonize(tmp_path / "v.png", {"mat:B": zone}, tmp_path / "h.png", {"mat:B": zone}, tmp_path / "o.png")
+    out = np.asarray(Image.open(tmp_path / "o.png").convert("RGB"), np.float64)
+    lab = lambda a: _srgb_to_lab(np.asarray(a, np.float64)[None, None])[0, 0]  # noqa: E731
+    band_before, band_after = lab(img[100, 100]), lab(out[100, 100])
+    assert np.hypot(*(band_after[1:] - band_before[1:])) < 3
+    brick_before, brick_after, target = lab(img[20, 20]), lab(out[20, 20]), lab(hero[20, 20])
+    assert np.hypot(*(brick_after[1:] - target[1:])) < 0.5 * np.hypot(*(brick_before[1:] - target[1:]))
+
+
+def test_shade_grade_darkens_the_building_not_the_surroundings(tmp_path):
+    import numpy as np
+    from PIL import Image
+    from core.harmonize import shade_grade
+    img = np.full((300, 400, 3), 200, np.uint8)
+    Image.fromarray(img).save(tmp_path / "f.png")
+    building = np.zeros((300, 400), bool)
+    building[60:220, 120:280] = True
+    shade_grade(tmp_path / "f.png", building, tmp_path / "f.png")
+    out = np.asarray(Image.open(tmp_path / "f.png").convert("L"), np.float64)
+    assert out[140, 200] < 0.8 * 200          # the facade is in shade
+    assert out[230, 200] < out[290, 200]      # its shadow on the ground fades away from it
+    assert abs(out[30, 30] - 200) < 2 and abs(out[150, 20] - 200) < 2  # sky and sunlit surroundings untouched

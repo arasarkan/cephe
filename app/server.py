@@ -131,7 +131,8 @@ def get_project(pid):
             abort(404)
         p = Project(folder, read_input(src))
         meta = folder / "project.json"
-        p.name = json.loads(meta.read_text(encoding="utf-8"))["name"] if meta.exists() else pid
+        info = json.loads(meta.read_text(encoding="utf-8")) if meta.exists() else {}
+        p.name, p.name_key = info.get("name", pid), info.get("name_key")
         projects[pid] = p
     return projects[pid]
 
@@ -196,16 +197,18 @@ def sample():
     src = next((ROOT / "examples").glob("ornek_proje.*"), None)
     if src is None:
         return jsonify({"error": t("sample_missing", lang())}), 404
-    return open_project(src, t("sample_name", lang()))
+    return open_project(src, t("sample_name", lang()), key="sample_name")
 
 
-def open_project(src, name):
+def open_project(src, name, key=None):
+    """key: an i18n key for the name (the sample), so the sheet shows it in the render's language."""
     try:
         p = Project.create(src, PROJECTS)
     except UserError as e:
         return jsonify({"error": e.message(lang())}), 400
-    p.name = name
-    (p.folder / "project.json").write_text(json.dumps({"name": p.name}, ensure_ascii=False), encoding="utf-8")
+    p.name, p.name_key = name, key
+    (p.folder / "project.json").write_text(json.dumps({"name": name, "name_key": key}, ensure_ascii=False),
+                                           encoding="utf-8")
     projects[p.folder.name] = p
     s = p.summary(lang())
     if not any(v["renderable"] for v in s["views"]):

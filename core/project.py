@@ -196,7 +196,7 @@ class Project:
             else:
                 harmonize(raw, regs, hero[0], hero[1], final_png, skip=hero[2])
             if light == "shade":
-                shade_grade(final_png, z["sky"], final_png)
+                shade_grade(final_png, z["building"], final_png)
             if final:  # the 2K detail could still move lines: judge what the user gets
                 check = fidelity.check(v, scale, Image.open(raw))
             fidelity.drift_map(Image.open(final_png), check["misses"], control.size, out / f"{v.id}_drift.png")
@@ -209,8 +209,9 @@ class Project:
         # the sheet reads front, right, back, left (render order is about light, not reading)
         results.sort(key=lambda r: (ORDER.get(scene.facing_of(self.views[r["view"]]), 9), r["view"]))
         items = [{"image": out / r["image"], "title": r["title"], "px_per_unit": r["px_per_unit"]} for r in results]
-        png, pdf = make_sheet(items, getattr(self, "name", "Project"), out / "sheet.png", self.sheet.units_per_m,
-                              scene.lang)
+        key = getattr(self, "name_key", None)  # the sample's name follows the render's language
+        title = t(key, scene.lang) if key else getattr(self, "name", "Project")
+        png, pdf = make_sheet(items, title, out / "sheet.png", self.sheet.units_per_m, scene.lang)
         meta = {"mode": mode, "scene": scene.__dict__, "results": results, "sheet": [png.name, pdf.name],
                 "gpu": name}
         (out / "result.json").write_text(json.dumps(meta, indent=2, ensure_ascii=False, default=str), encoding="utf-8")

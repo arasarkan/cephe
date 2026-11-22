@@ -6,7 +6,13 @@ DWG dosyanızı bırakın. Cephe bütün görünüşleri bulur ve hepsini aynı 
 bir güneş altında render eder. Sonuç, aynı binanın fotoğrafları gibi duran bir A3 paftadır. Prompt yazmak, ayar
 bilmek gerekmez. Her şey kendi bilgisayarınızda çalışır; çizimleriniz dışarı çıkmaz.
 
+> **Erken sürüm.** Şimdiye kadar yalnızca depodaki örnek çizimle ve tek bir bilgisayarda (RTX 4050, 6 GB)
+> denendi. Gerçek ofis çizimleriyle ve temiz bir Windows'ta kurulumla henüz denenmedi. Sorun çıkarsa lütfen
+> bir issue açın.
+
 ![Demo: örnek projeyi açma, sahneyi seçme, sunum paftası ve çizime uyum](docs/demo.gif)
+
+*Demoda render'ı bekleme kısmı atlandı: dört cephenin sunum render'ı bu bilgisayarda yaklaşık 15 dakika sürüyor.*
 
 [English below](#english)
 
@@ -54,7 +60,10 @@ belirgin biçimde güçlü bir kenar var mı? Sonuç her cephenin altında **"Ç
 
 ![Solda render, sağda farklar: kırmızı çizgiler render'ın çizimden ayrıldığı yerler](docs/uyum.jpg)
 
-Puan %80'in altına düşerse o cephe başka bir varyasyonla bir kez daha çizilir ve çizime daha iyi uyan sürüm
+Birbirine çok yakın iki çizgi (bir bant, bir çerçeve) render'da tek bir bant olarak çıkarsa, aradaki kenar ikisi
+için de sayılır.
+
+Puan %84'ün altına düşerse o cephe başka bir varyasyonla bir kez daha çizilir ve çizime daha iyi uyan sürüm
 tutulur. Bu kontrol 2K detaydan önce, hızlı ilk geçişte yapılır; böylece zaman kaybı az olur.
 
 ## Kurulum
@@ -105,10 +114,10 @@ Türkçeye geçer. Türkçe ve İngilizce başlıklı çizimler iki dilde de tan
 
 - **Sunum içindir, uygulama projesi için değil.** Ölçüsel doğruluk garanti edilmez.
 - **Çizime uyum kontrolü çizgilere bakar, anlama değil.** Kaybolan ya da kayan çizgiyi bulur (eksik bir kayıt,
-  yanlış sayıda korkuluk). Render'ın çizimde olmayan bir şey eklemesini henüz yakalamaz. Birbirine çok yakın
-  çift çizgiler (bant, çerçeve) render'da tek çizgi olunca kısmen fark sayılır.
-- **Işık ve gölge yönlendirilir, fiziksel olarak hesaplanmaz.** Balkon gölgesinin boyu gibi ayrıntılar
-  yaklaşıktır.
+  yanlış sayıda korkuluk). Render'ın çizimde olmayan bir şey eklemesini henüz yakalamaz.
+- **Işık ve gölge yönlendirilir, fiziksel olarak hesaplanmaz.** Gölgedeki cephe render'dan sonra koyulaştırılır;
+  balkon gölgesinin boyu gibi ayrıntılar yaklaşıktır.
+- **Her cephenin çevresi ayrı üretilir.** Bina aynıdır ama arkadaki ağaçlar ve sokak cepheden cepheye değişir.
 - **Şimdilik yalnızca cepheler.** Kesit ve plan render'ı, PDF ve görsel girdi sonraki sürümlerde.
 
 ## Nasıl çalışır
@@ -161,7 +170,11 @@ Drop in a DWG file. Cephe ("facade" in Turkish) finds every elevation and render
 materials, the same sky, one scale and one sun, so they read as photos of one building, laid out on an A3
 sheet. No prompts to write, no settings to learn. Everything runs on your own computer; your drawings never
 leave it. The demo and sample sheet at the top of this page were made from
-[examples/ornek_proje.dwg](examples/ornek_proje.dwg) in this repository.
+[examples/ornek_proje.dwg](examples/ornek_proje.dwg) in this repository (the demo skips the ~15 minute wait
+for the render).
+
+> **Early version.** So far tested only with the sample drawing on one computer (RTX 4050, 6 GB); not yet with
+> real office drawings or a clean Windows install. Please open an issue if something breaks.
 
 **What it does**
 
@@ -197,8 +210,9 @@ pattern names the material (`BRICK`, `STONE`, `CONCRETE`, `WOOD`, `METAL`, `GLAS
 `TUGLA`, `TAS`, `BETON`…); keep drawings apart in model space. Layers that are off or frozen are left out.
 
 **Limits.** For presentation, not construction documents. The drawing-match check finds lost or moved lines but
-not things the render adds; close double lines drawn as one count partly as misses. Light and shadow are
-steered, not physically simulated. Elevations only for now; sections, plans, PDF and image inputs come later.
+not things the render adds. Light and shadow are steered, not physically simulated (a facade in shade is graded
+darker after rendering). Each facade's surroundings are generated separately, so trees and street differ from
+one facade to the next. Elevations only for now; sections, plans, PDF and image inputs come later.
 
 **License.** No open-source license has been chosen yet: the code is public to read, all rights reserved. The
 models have their own licenses (Z-Image-Turbo and Fun Union ControlNet by Alibaba, RealESRGAN); check them before

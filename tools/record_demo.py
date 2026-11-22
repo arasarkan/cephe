@@ -1,4 +1,4 @@
-"""Record the README demo: drives the running app in Edge and saves docs/demo.gif + docs/arayuz.png.
+"""Record the README demo: drives the running app in Edge and saves docs/demo.gif.
 
     python tools/record_demo.py <result.json of a finished presentation render> [--lang tr]
 
@@ -63,7 +63,6 @@ def main():
         page.wait_for_timeout(1200)
         shot(500)
         scroll_to(top_of("#s-views"))
-        page.screenshot(path=str(ROOT / "docs" / "arayuz.png"))
         shot(2200)
         scroll_to(top_of("#s-scene"))
         shot(2300)  # left as rendered: the result shown below was made with these settings

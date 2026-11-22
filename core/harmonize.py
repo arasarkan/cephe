@@ -31,9 +31,25 @@ def _resize_mask(mask, size):
     return np.asarray(Image.fromarray(mask.astype(np.uint8) * 255).resize(size, Image.NEAREST)) > 127
 
 
+MATERIAL_SPREAD = 14.0  # Lab a/b distance at which a pixel stops counting as "the material"
+
+
 def _stats(lab, mask):
     px = lab[mask]
     return (px.mean(0), px.std(0) + 1e-3) if len(px) > 200 else None
+
+
+def _dominant_ab(lab, mask):
+    """The material's own a/b color in a zone: median of the pixels near the zone's median, so bands,
+    sills and windows inside the zone don't pull it. Returns ((a, b), count) or None."""
+    px = lab[mask][:, 1:]
+    if len(px) < 200:
+        return None
+    center = np.median(px, 0)
+    near = px[np.hypot(*(px - center).T) < MATERIAL_SPREAD]
+    if len(near) < 100:
+        return None
+    return np.median(near, 0), len(near)
 
 
 def regions(z):
@@ -60,17 +76,29 @@ def material_ok(image_path, area, expected_rgb, tol=40):
     return float(np.hypot(got[1] - want[1], got[2] - want[2])) < tol
 
 
-def shade_grade(image_path, sky_mask, out_path, darken=0.86, cool=4.0):
-    """A facade on the shadow side: a bit darker and cooler outside the sky, so the one-sun logic reads
-    across the set even where the model lit it too evenly."""
-    img = np.asarray(Image.open(image_path).convert("RGB"), np.float64)
-    lab = _srgb_to_lab(img)
-    m = ~_resize_mask(sky_mask, (img.shape[1], img.shape[0]))
-    lab[..., 0] = np.where(m, lab[..., 0] * darken, lab[..., 0])
-    lab[..., 2] = np.where(m, lab[..., 2] - cool, lab[..., 2])
+def shade_grade(image_path, building_mask, out_path, darken=0.64, cool=8.0, chroma=0.8, ground=0.18):
+    """A facade on the shadow side gets only skylight: the building clearly darker, cooler and less
+    saturated, and the ground just in front of it in its shadow (soft-edged), while the sky and the sunlit
+    surroundings stay as they are. The model tends to light every facade evenly; this makes the one-sun
+    logic read across the set."""
     from scipy import ndimage
-    diff = ndimage.gaussian_filter(_lab_to_srgb(lab) - img, sigma=(2, 2, 0))
-    Image.fromarray(np.clip(img + diff, 0, 255).astype(np.uint8)).save(out_path)
+    img = np.asarray(Image.open(image_path).convert("RGB"), np.float64)
+    H, W = img.shape[:2]
+    b = _resize_mask(building_mask, (W, H))
+    shade = ndimage.gaussian_filter(b.astype(np.float64), max(1.5, W / 800))
+    rows = np.flatnonzero(b.any(1))
+    cols = np.flatnonzero(b.any(0))
+    if rows.size:  # the building's own shadow on the ground in front: fades with distance, soft at the sides
+        y0, depth = rows[-1], max(1, int(ground * (rows[-1] - rows[0])))
+        ys = np.arange(y0, min(H, y0 + depth))
+        g = np.zeros((H, W))
+        g[ys[:, None], cols[None, :]] = (1 - (ys - y0) / depth)[:, None] * 0.75
+        shade = np.maximum(shade, ndimage.gaussian_filter(g, W / 120))
+    lab = _srgb_to_lab(img)
+    lab[..., 0] *= 1 - (1 - darken) * shade
+    lab[..., 1:] *= (1 - (1 - chroma) * shade)[..., None]
+    lab[..., 2] -= cool * shade
+    Image.fromarray(np.clip(_lab_to_srgb(lab), 0, 255).astype(np.uint8)).save(out_path)
 
 
 def harmonize(image_path, view_regions, hero_image_path, hero_regions, out_path, strength=0.8, skip=()):
@@ -84,13 +112,25 @@ def harmonize(image_path, view_regions, hero_image_path, hero_regions, out_path,
             continue
         m = _resize_mask(mask, (W, H))
         hm = _resize_mask(hero_regions[name], (hero.shape[1], hero.shape[0]))
-        s, hs = _stats(lab, m), _stats(hlab, hm)
-        if s is None or hs is None:
+        if name == "sky":
+            s, hs = _stats(lab, m), _stats(hlab, hm)
+            if s is None or hs is None:
+                continue
+            for c in (0, 1, 2):
+                target = (lab[..., c] - s[0][c]) * (hs[1][c] / s[1][c]) + hs[0][c]
+                result[..., c] = np.where(m, lab[..., c] + strength * (target - lab[..., c]), result[..., c])
             continue
-        chans = [0, 1, 2] if name == "sky" else [1, 2]
-        for c in chans:
-            target = (lab[..., c] - s[0][c]) * (hs[1][c] / s[1][c]) + hs[0][c]
-            result[..., c] = np.where(m, lab[..., c] + strength * (target - lab[..., c]), result[..., c])
+        # A material zone also holds things that aren't the material (a band crossing brick, sills, frames).
+        # Match only the material itself: its dominant color, shifted (not stretched) toward the hero's, and
+        # applied only to pixels near that color, so a beige band in a brick zone stays beige.
+        own, ref = _dominant_ab(lab, m), _dominant_ab(hlab, hm)
+        if own is None or ref is None:
+            continue
+        center, _ = own
+        dist = np.hypot(lab[..., 1] - center[0], lab[..., 2] - center[1])
+        weight = np.where(m, np.exp(-(dist / MATERIAL_SPREAD) ** 2), 0.0)
+        for c, (a, b) in zip((1, 2), zip(center, ref[0])):
+            result[..., c] += strength * weight * (b - a)
     # feather the edits a little so region borders don't show
     from scipy import ndimage
     blended = _lab_to_srgb(result)
