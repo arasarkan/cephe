@@ -1,0 +1,476 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cephe</title>
+<style>
+:root {
+  --bg: #ffffff; --fill: #f5f5f7; --fill2: #e8e8ed; --ink: #1d1d1f; --muted: #6e6e73; --faint: #86868b;
+  --accent: #0071e3; --accent-hover: #0077ed; --bad: #d70015; --warn: #b25000;
+}
+* { box-sizing: border-box; }
+html { -webkit-font-smoothing: antialiased; }
+body { margin: 0; background: var(--bg); color: var(--ink);
+  font: 15px/1.47 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  letter-spacing: -.01em; }
+button, select, textarea, input { font: inherit; color: inherit; letter-spacing: inherit; }
+header { position: sticky; top: 0; z-index: 5; background: rgba(255,255,255,.82); backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px); border-bottom: 1px solid rgba(0,0,0,.08); }
+.bar { max-width: 980px; margin: 0 auto; padding: 0 22px; height: 48px; display: flex; align-items: center;
+  justify-content: space-between; gap: 16px; }
+header h1 { margin: 0; font-size: 17px; font-weight: 600; letter-spacing: -.02em; }
+.hright { display: flex; gap: 18px; align-items: center; font-size: 12px; color: var(--faint); }
+#engine.error { color: var(--bad); }
+.langs { display: flex; gap: 10px; }
+.langs button { border: 0; background: none; padding: 0; cursor: pointer; color: var(--faint); font-size: 12px; }
+.langs button.on { color: var(--ink); font-weight: 600; }
+main { max-width: 980px; margin: 0 auto; padding: 0 22px 120px; }
+section { padding: 56px 0; border-top: 1px solid var(--fill2); }
+section:first-child { border-top: 0; padding-top: 72px; }
+section h2 { margin: 0 0 6px; font-size: 28px; line-height: 1.14; font-weight: 600; letter-spacing: -.025em; }
+section .sub { margin: 0 0 28px; color: var(--muted); font-size: 17px; max-width: 640px; }
+#drop { background: var(--fill); border-radius: 18px; padding: 64px 20px; text-align: center; cursor: pointer;
+  transition: background .2s; color: var(--muted); }
+#drop.over, #drop:hover { background: var(--fill2); }
+#drop strong { display: block; font-size: 19px; font-weight: 600; color: var(--ink); margin-bottom: 2px; }
+.aside { margin-top: 16px; font-size: 14px; color: var(--muted); }
+a, .link { color: var(--accent); text-decoration: none; background: none; border: 0; padding: 0; cursor: pointer; }
+a:hover, .link:hover { text-decoration: underline; }
+.link:disabled { opacity: .35; cursor: default; text-decoration: none; }
+.views { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 28px 22px; }
+.view { position: relative; }
+.view.off { opacity: .4; }
+.view img { width: 100%; height: 150px; object-fit: contain; background: var(--fill); border-radius: 14px; display: block;
+  padding: 12px; }
+.view label.pick { position: absolute; top: 10px; left: 10px; display: flex; cursor: pointer; }
+.view label.pick input { width: 18px; height: 18px; margin: 0; accent-color: var(--accent); cursor: pointer; }
+.view .info { padding-top: 10px; }
+.view .name { font-weight: 600; font-size: 15px; }
+.view .meta { color: var(--faint); font-size: 13px; }
+.view .field { margin-top: 10px; }
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 24px 28px; }
+.field label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 8px; }
+select, textarea { width: 100%; padding: 10px 12px; border: 0; border-radius: 10px; background-color: var(--fill);
+  appearance: none; -webkit-appearance: none; outline: none; transition: box-shadow .15s; }
+select { padding-right: 30px; cursor: pointer; background-repeat: no-repeat; background-position: right 12px center;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%2386868b' stroke-width='1.5'/%3E%3C/svg%3E"); }
+select:focus, textarea:focus { box-shadow: 0 0 0 3px rgba(0,113,227,.3); }
+textarea { resize: vertical; min-height: 72px; }
+.seg { display: flex; flex-wrap: wrap; gap: 2px; background: var(--fill); border-radius: 10px; padding: 2px; }
+.seg button { flex: 1 1 auto; border: 0; background: none; border-radius: 8px; padding: 8px 12px; cursor: pointer;
+  font-size: 13px; white-space: nowrap; }
+.seg button.on { background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.12); font-weight: 600; }
+.pair { display: flex; gap: 8px; }
+.matshead { margin: 40px 0 12px; font-size: 13px; color: var(--muted); }
+.mat { display: grid; grid-template-columns: 14px 1.3fr 1fr 1fr; gap: 14px; align-items: center; padding: 12px 0;
+  border-top: 1px solid var(--fill2); }
+.mat:last-child { border-bottom: 1px solid var(--fill2); }
+.mat .sw { width: 14px; height: 14px; border-radius: 50%; }
+.mat .src small { display: block; color: var(--faint); font-size: 12px; }
+.notefield { margin-top: 40px; }
+.actions { display: flex; flex-wrap: wrap; gap: 14px 22px; align-items: center; }
+.btn { border: 0; border-radius: 980px; padding: 11px 22px; font-size: 15px; cursor: pointer; text-decoration: none;
+  text-align: center; transition: background .15s; }
+.btn.primary { background: var(--accent); color: #fff; }
+.btn.primary:hover { background: var(--accent-hover); text-decoration: none; }
+.btn.secondary { background: var(--fill); }
+.btn.secondary:hover { background: var(--fill2); }
+.btn:disabled { opacity: .35; cursor: default; }
+.est { display: block; font-size: 12px; opacity: .75; }
+.progress { height: 4px; background: var(--fill2); border-radius: 2px; overflow: hidden; margin: 32px 0 12px; }
+.progress div { height: 100%; width: 0; background: var(--accent); transition: width .6s ease; }
+.msg { color: var(--muted); font-size: 14px; display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+#b-cancel { margin-top: 12px; font-size: 14px; }
+.warn { color: var(--warn); font-size: 14px; margin-top: 16px; }
+.error { color: var(--bad); font-size: 14px; margin-top: 16px; }
+.sheet { width: 100%; border-radius: 14px; display: block; cursor: zoom-in; background: var(--fill); }
+.result-actions { margin-top: 24px; }
+.gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 32px 22px; margin-top: 48px; }
+.gallery figure { margin: 0; } .gallery img { width: 100%; border-radius: 12px; display: block; cursor: zoom-in; }
+.gallery figcaption { margin-top: 10px; font-size: 13px; color: var(--faint); }
+.gallery figcaption b { display: block; font-size: 15px; font-weight: 600; color: var(--ink); }
+.fid { display: block; margin-top: 2px; color: var(--muted); }
+.fid.fair { color: var(--warn); } .fid.poor { color: var(--bad); }
+.fid .link { margin-left: 8px; }
+.fidnote { font-size: 13px; color: var(--faint); margin-top: 28px; max-width: 640px; }
+.hidden { display: none !important; }
+#lightbox { position: fixed; inset: 0; background: rgba(0,0,0,.9); display: grid; place-items: center; z-index: 20; cursor: zoom-out; }
+#lightbox img { max-width: 96vw; max-height: 94vh; }
+@media (max-width: 820px) { .mat { grid-template-columns: 14px 1fr 1fr; } .mat .src { grid-column: 2 / -1; }
+  .mat select[data-mat] { grid-column: 1 / 3; } }
+@media (max-width: 640px) { .bar, main { padding-left: 16px; padding-right: 16px; } #engine { display: none; }
+  section { padding: 40px 0; } section:first-child { padding-top: 40px; } section h2 { font-size: 24px; }
+  section .sub { font-size: 15px; } .actions .btn { flex: 1 1 100%; } }
+</style>
+</head>
+<body>
+<header><div class="bar">
+  <h1>Cephe</h1>
+  <div class="hright">
+    <span id="engine"></span>
+    <div class="langs" id="langs"><button data-l="en">EN</button><button data-l="tr">TR</button></div>
+  </div>
+</div></header>
+
+<main>
+  <section>
+    <h2 data-t="s1"></h2>
+    <p class="sub" data-t="s1sub"></p>
+    <div id="drop"><strong data-t="drop"></strong><span data-t="dropor"></span>
+      <input id="file" type="file" accept=".dwg,.dxf" hidden></div>
+    <div class="aside"><span data-t="nofile"></span> <a href="#" id="sample" data-t="trysample"></a></div>
+    <div id="upmsg" class="msg hidden" style="margin-top:16px"></div>
+    <div id="uperr" class="error hidden"></div>
+  </section>
+
+  <section id="s-views" class="hidden">
+    <h2 data-t="s2"></h2>
+    <p class="sub" data-t="s2sub"></p>
+    <div id="views" class="views"></div>
+    <div id="warns"></div>
+  </section>
+
+  <section id="s-scene" class="hidden">
+    <h2 data-t="s3"></h2>
+    <p class="sub" data-t="s3sub"></p>
+    <div class="grid2">
+      <div class="field"><label data-t="building"></label><select id="building"></select></div>
+      <div class="field"><label data-t="setting"></label><select id="setting"></select></div>
+      <div class="field"><label data-t="season"></label><select id="season"></select></div>
+      <div class="field"><label data-t="people"></label><select id="people"></select></div>
+      <div class="field"><label data-t="vehicles"></label><select id="vehicles"></select></div>
+      <div class="field"><label data-t="wall"></label>
+        <div class="pair"><select id="wall-mat"></select><select id="wall-opt"></select></div></div>
+      <div class="field" style="grid-column:1/-1"><label data-t="time"></label><div id="time" class="seg"></div></div>
+      <div class="field hidden" id="front-field" style="grid-column:1/-1"><label data-t="front"></label><div id="front" class="seg"></div></div>
+    </div>
+    <div id="mats-wrap" class="hidden">
+      <div class="matshead" data-t="matsfound"></div>
+      <div id="mats"></div>
+    </div>
+    <div class="field notefield"><label data-t="note"></label>
+      <textarea id="note" data-tp="noteph"></textarea></div>
+  </section>
+
+  <section id="s-render" class="hidden">
+    <h2 data-t="s4"></h2>
+    <p class="sub" data-t="s4sub"></p>
+    <div class="actions">
+      <button class="btn primary" id="b-final"><span data-t="final"></span><span class="est" id="est-f"></span></button>
+      <button class="btn secondary" id="b-preview"><span data-t="preview"></span><span class="est" id="est-p"></span></button>
+      <button class="link" id="b-vary" data-t="vary"></button>
+    </div>
+    <div id="run" class="hidden">
+      <div class="progress"><div id="bar"></div></div>
+      <div class="msg"><span id="runmsg"></span><span id="runtime"></span></div>
+      <button class="link" id="b-cancel" data-t="cancel"></button>
+    </div>
+    <div id="runerr" class="error hidden"></div>
+  </section>
+
+  <section id="s-result" class="hidden">
+    <h2 data-t="result"></h2>
+    <p class="sub" id="result-sub"></p>
+    <img id="sheet" class="sheet" alt="">
+    <div class="actions result-actions">
+      <a class="btn primary" id="dl-pdf" download data-t="dlpdf"></a>
+      <a id="dl-png" download data-t="dlpng"></a>
+      <a id="dl-zip" data-t="dlzip"></a>
+    </div>
+    <div id="gallery" class="gallery"></div>
+    <p class="fidnote" id="fidnote"></p>
+  </section>
+</main>
+<div id="lightbox" class="hidden"><img alt=""></div>
+
+<script>
+const I18N = {
+  en: {
+    s1: "Upload a drawing", s1sub: "A DWG or DXF with your elevations. It never leaves this computer.",
+    drop: "Drop a file here", dropor: "or click to choose one", nofile: "No file at hand?", trysample: "Try the sample project",
+    s2: "Views", s2sub: "Pick the facades to render. Names come from the titles on the sheet.",
+    s3: "Scene", s3sub: "One setting for every facade, so they read as one building.",
+    building: "Building", setting: "Surroundings", season: "Season", time: "Time of day",
+    people: "People", vehicles: "Vehicles",
+    front: "The front facade faces", wall: "Wall", matsfound: "Materials from hatches",
+    note: "Notes", noteph: "For example: a few parked cars in front, flower pots on the balconies",
+    s4: "Render", s4sub: "The presentation render adds 2K detail and the sheet. A preview is quicker.",
+    preview: "Quick preview", final: "Presentation render", vary: "Another variation", cancel: "Cancel",
+    result: "Result", dlpdf: "Download PDF", dlpng: "PNG", dlzip: "All files",
+    pick: "Render", soon: "coming later", whichway: "This facade faces", choose: "Choose",
+    layer: "Layer", places: "places", notmat: "Not a material", fill: "Solid fill",
+    reading: "Reading {f}", found: "{f}. {n} drawings found.", sample: "Sample project",
+    connecting: "Connecting", ready: "Ready", starting: "Starting the engine",
+    offline: "Engine off", noserver: "App server not reachable",
+    needfacing: "Choose which way each facade without a direction faces.",
+    elapsed: "{t} elapsed", left: "about {t} left", about: "About {t}",
+    resfinal: "2K. Every facade at one scale, under one sun.",
+    respreview: "Preview. When you like it, make the presentation render.",
+    light: { lit: "In sun", left: "Sun from the left", right: "Sun from the right", shade: "In shade", overcast: "Overcast" },
+    kind: { elevation: "Elevation", section: "Section", plan: "Plan", unknown: "Unknown" },
+    dir: { N: "North", NE: "North-east", E: "East", SE: "South-east", S: "South", SW: "South-west", W: "West", NW: "North-west",
+           front: "Front", back: "Back", right: "Right", left: "Left" },
+    sec: "s", min: "min",
+    fid: "Drawing match {p}%", showdiff: "Show differences", hidediff: "Hide differences",
+    fidnote: "Drawing match is the share of your drawing's lines the render follows. Differences are marked in red.",
+    fidpoor: " A low score means the facade drifted; try another variation.",
+  },
+  tr: {
+    s1: "Çizim yükleyin", s1sub: "Cephelerin olduğu bir DWG ya da DXF. Dosya bu bilgisayardan çıkmaz.",
+    drop: "Dosyayı buraya bırakın", dropor: "ya da tıklayıp seçin", nofile: "Elinizde dosya yok mu?", trysample: "Örnek projeyi deneyin",
+    s2: "Görünüşler", s2sub: "Render edilecek cepheleri seçin. Adlar paftadaki başlıklardan okundu.",
+    s3: "Sahne", s3sub: "Bütün cepheler için tek ayar; böylece hepsi aynı binanın fotoğrafı gibi görünür.",
+    building: "Yapı", setting: "Çevre", season: "Mevsim", time: "Saat",
+    people: "İnsanlar", vehicles: "Araçlar",
+    front: "Ön cephenin baktığı yön", wall: "Duvar", matsfound: "Taramalardan gelen malzemeler",
+    note: "Notlar", noteph: "Örneğin: önde park etmiş birkaç araba, balkonlarda saksılar",
+    s4: "Render", s4sub: "Sunum render'ı 2K detay ve paftayı ekler. Önizleme daha hızlıdır.",
+    preview: "Hızlı önizleme", final: "Sunum render'ı", vary: "Başka bir varyasyon", cancel: "İptal",
+    result: "Sonuç", dlpdf: "PDF indir", dlpng: "PNG", dlzip: "Tüm dosyalar",
+    pick: "Render et", soon: "sonra gelecek", whichway: "Bu cephenin baktığı yön", choose: "Seçin",
+    layer: "Katman", places: "yerde", notmat: "Malzeme değil", fill: "Dolgu",
+    reading: "{f} okunuyor", found: "{f}. {n} çizim bulundu.", sample: "Örnek proje",
+    connecting: "Bağlanıyor", ready: "Hazır", starting: "Motor başlatılıyor",
+    offline: "Motor kapalı", noserver: "Uygulama sunucusuna ulaşılamıyor",
+    needfacing: "Yönü belli olmayan her cephe için baktığı yönü seçin.",
+    elapsed: "{t} geçti", left: "yaklaşık {t} kaldı", about: "Yaklaşık {t}",
+    resfinal: "2K. Bütün cepheler tek ölçekte, tek güneş altında.",
+    respreview: "Önizleme. Beğendiğinizde sunum render'ını alın.",
+    light: { lit: "Güneşte", left: "Güneş soldan", right: "Güneş sağdan", shade: "Gölgede", overcast: "Bulutlu" },
+    kind: { elevation: "Cephe", section: "Kesit", plan: "Plan", unknown: "Bilinmiyor" },
+    dir: { N: "Kuzey", NE: "Kuzeydoğu", E: "Doğu", SE: "Güneydoğu", S: "Güney", SW: "Güneybatı", W: "Batı", NW: "Kuzeybatı",
+           front: "Ön", back: "Arka", right: "Sağ", left: "Sol" },
+    sec: "sn", min: "dk",
+    fid: "Çizime uyum %{p}", showdiff: "Farkları göster", hidediff: "Farkları gizle",
+    fidnote: "Çizime uyum, çiziminizdeki çizgilerin ne kadarının render'da karşılığı olduğunu gösterir. Farklar kırmızıyla işaretlenir.",
+    fidpoor: " Düşük puan cephenin çizimden saptığını gösterir; başka bir varyasyon deneyin.",
+  },
+};
+let LANG = "en";
+try { LANG = localStorage.getItem("lang") || "en"; } catch {}
+if (!I18N[LANG]) LANG = "en";
+const T = (k, vars = {}) => String(I18N[LANG][k] ?? I18N.en[k] ?? k).replace(/\{(\w+)\}/g, (_, v) => vars[v] ?? "");
+
+const $ = (id) => document.getElementById(id);
+let OPT = null, PROJ = null, JOB = null, seed = 42, lastFinal = false, lastResult = null;
+
+async function api(path, opts = {}) {
+  const sep = path.includes("?") ? "&" : "?";
+  const r = await fetch(`${path}${sep}lang=${LANG}`, opts);
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || `Error (${r.status})`);
+  return j;
+}
+const fill = (sel, obj, value) => { sel.innerHTML = Object.entries(obj).map(([k, v]) =>
+  `<option value="${k}" ${k === value ? "selected" : ""}>${v}</option>`).join(""); };
+function seg(el, obj, value) {
+  el.innerHTML = Object.entries(obj).map(([k, v]) =>
+    `<button type="button" data-v="${k}" class="${k === value ? "on" : ""}">${v}</button>`).join("");
+  el.onclick = (e) => { const b = e.target.closest("button"); if (!b) return;
+    el.querySelectorAll("button").forEach(x => x.classList.toggle("on", x === b)); };
+}
+const segVal = (el) => el.querySelector("button.on")?.dataset.v;
+const fmt = (s) => s < 60 ? `${Math.max(1, Math.round(s))} ${T("sec")}` : `${Math.round(s / 60)} ${T("min")}`;
+const clock = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
+
+function applyStatic() {
+  document.documentElement.lang = LANG;
+  document.querySelectorAll("[data-t]").forEach(el => el.textContent = T(el.dataset.t));
+  document.querySelectorAll("[data-tp]").forEach(el => el.placeholder = T(el.dataset.tp));
+  document.querySelectorAll("#langs button").forEach(b => b.classList.toggle("on", b.dataset.l === LANG));
+}
+$("langs").onclick = async (e) => {
+  const b = e.target.closest("button"); if (!b || b.dataset.l === LANG) return;
+  const keep = PROJ ? sceneData() : null;
+  LANG = b.dataset.l; try { localStorage.setItem("lang", LANG); } catch {}
+  applyStatic(); await loadOptions(keep); status();
+  if (PROJ) { showProject(); if (keep) restoreProject(keep); }
+  if (lastResult) showResult(lastResult);
+};
+
+async function status() {
+  try {
+    const s = await api("/api/status");
+    $("engine").className = ["ready", "starting"].includes(s.comfy) ? "" : "error";
+    $("engine").textContent = s.comfy === "ready" ? (s.gpu || T("ready"))
+      : s.comfy === "starting" ? T("starting") : (s.message || T("offline"));
+  } catch { $("engine").className = "error"; $("engine").textContent = T("noserver"); }
+}
+
+async function loadOptions(keep) {
+  OPT = await api("/api/options");
+  const sc = OPT.scene, k = keep || {};
+  fill($("building"), sc.building, k.building || "residential"); fill($("setting"), sc.setting, k.setting || "city");
+  fill($("season"), sc.season, k.season || "summer");
+  fill($("people"), sc.people, k.people || "few"); fill($("vehicles"), sc.vehicles, k.vehicles || "none");
+  seg($("time"), sc.time, k.time || "noon"); seg($("front"), sc.front, k.front || "S");
+  const mats = Object.fromEntries(Object.entries(OPT.catalog).map(([key, v]) => [key, v.name]));
+  const wall = k.wall || OPT.wall_default;
+  fill($("wall-mat"), mats, wall[0]);
+  const wallOpts = (opt) => fill($("wall-opt"), OPT.catalog[$("wall-mat").value].options,
+    opt || ($("wall-mat").value === OPT.wall_default[0] ? OPT.wall_default[1] : OPT.catalog[$("wall-mat").value].default));
+  $("wall-mat").onchange = () => wallOpts(); wallOpts(wall[1]);
+}
+async function init() {
+  applyStatic(); $("engine").textContent = T("connecting");
+  await loadOptions(); status(); setInterval(status, 4000);
+}
+
+// ---- upload ---------------------------------------------------------------------------------------------
+const drop = $("drop");
+drop.onclick = () => $("file").click();
+$("file").onchange = () => $("file").files[0] && upload($("file").files[0]);
+drop.ondragover = (e) => { e.preventDefault(); drop.classList.add("over"); };
+drop.ondragleave = () => drop.classList.remove("over");
+drop.ondrop = (e) => { e.preventDefault(); drop.classList.remove("over"); e.dataTransfer.files[0] && upload(e.dataTransfer.files[0]); };
+
+async function upload(file) {
+  const fd = new FormData(); fd.append("file", file);
+  open_(file.name, () => api("/api/projects", { method: "POST", body: fd }));
+}
+async function open_(label, call) {
+  $("uperr").classList.add("hidden");
+  $("upmsg").classList.remove("hidden"); $("upmsg").textContent = T("reading", { f: label });
+  try {
+    PROJ = await call(); PROJ.label = label; lastResult = null;
+    showProject();
+    $("s-views").scrollIntoView({ behavior: "smooth" });
+  } catch (e) { $("upmsg").classList.add("hidden"); $("uperr").textContent = e.message; $("uperr").classList.remove("hidden"); }
+}
+$("sample").onclick = (e) => { e.preventDefault(); open_(T("sample"), () => api("/api/projects/sample", { method: "POST" })); };
+
+function showProject() {
+  const dirs = I18N[LANG].dir;
+  const compass = Object.fromEntries(["N", "NE", "E", "SE", "S", "SW", "W", "NW"].map(k => [k, dirs[k]]));
+  $("upmsg").textContent = T("found", { f: PROJ.label, n: PROJ.views.length });
+  $("views").innerHTML = PROJ.views.map(v => `
+    <div class="view ${v.renderable ? "" : "off"}" data-id="${v.id}">
+      <img src="/api/projects/${PROJ.id}/thumb/${v.id}.png" alt="">
+      ${v.renderable ? `<label class="pick" title="${T("pick")}"><input type="checkbox" checked data-pick="${v.id}"></label>` : ""}
+      <div class="info"><div class="name">${v.name}</div>
+        <div class="meta">${[I18N[LANG].kind[v.kind], v.facing && dirs[v.facing], `${v.size_m[0]} × ${v.size_m[1]} m`,
+          v.renderable ? "" : T("soon")].filter(Boolean).join(", ")}</div>
+        ${v.needs_facing ? `<div class="field"><label>${T("whichway")}</label>
+          <select data-facing="${v.id}"><option value="">${T("choose")}</option>${Object.entries(compass).map(([k, n]) =>
+          `<option value="${k}">${n}</option>`).join("")}</select></div>` : ""}
+      </div></div>`).join("");
+  $("warns").innerHTML = PROJ.warnings.map(w => `<div class="warn">${w}</div>`).join("");
+  $("front-field").classList.toggle("hidden", !PROJ.has_relative);
+  const catalog = { ignore: T("notmat"), ...Object.fromEntries(Object.entries(OPT.catalog).map(([k, v]) => [k, v.name])) };
+  $("mats").innerHTML = PROJ.materials.map(m => `
+    <div class="mat" data-g="${m.id}"><div class="sw"></div>
+      <div class="src">${m.pattern || T("fill")}<small>${T("layer")} ${m.layer}, ${m.count} ${T("places")}</small></div>
+      <select data-mat></select><select data-opt></select></div>`).join("");
+  document.querySelectorAll(".mat").forEach(row => {
+    const m = PROJ.materials.find(x => x.id === row.dataset.g);
+    const ms = row.querySelector("[data-mat]"), os = row.querySelector("[data-opt]");
+    fill(ms, catalog, m.material);
+    const upd = (opt) => { const c = OPT.catalog[ms.value];
+      os.classList.toggle("hidden", !c); if (c) fill(os, c.options, opt || (ms.value === m.material && m.option ? m.option : c.default));
+      row.querySelector(".sw").style.background = c ? swatch(ms.value) : "transparent"; };
+    ms.onchange = () => upd(); upd();
+  });
+  $("mats-wrap").classList.toggle("hidden", !PROJ.materials.length);
+  ["s-views", "s-scene", "s-render"].forEach(id => $(id).classList.remove("hidden"));
+  if (!lastResult) $("s-result").classList.add("hidden");
+  document.querySelectorAll("[data-pick]").forEach(c => c.onchange = estimates);
+  estimates();
+}
+function restoreProject(k) {  // keep the user's picks across a language switch
+  Object.entries(k.materials || {}).forEach(([g, v]) => {
+    const row = document.querySelector(`.mat[data-g="${CSS.escape(g)}"]`); if (!row) return;
+    const ms = row.querySelector("[data-mat]"); ms.value = v.material; ms.onchange();
+    if (v.option) row.querySelector("[data-opt]").value = v.option;
+  });
+  Object.entries(k.facings || {}).forEach(([id, f]) => { const s = document.querySelector(`[data-facing="${id}"]`); if (s) s.value = f; });
+  document.querySelectorAll("[data-pick]").forEach(c => c.checked = (k.picked || []).includes(+c.dataset.pick));
+  estimates();
+}
+const SW = { brick: "#9c4a34", stone: "#b8ae9c", concrete: "#a0a09b", wood: "#94653e", metal: "#7d8288", glass: "#3c4e60", roof: "#98422e", plaster: "#ded0b4" };
+const swatch = (k) => SW[k] || "#ccc";
+const picked = () => [...document.querySelectorAll("[data-pick]:checked")].map(c => +c.dataset.pick);
+function estimates() {
+  const n = Math.max(1, picked().length);
+  $("est-p").textContent = T("about", { t: fmt(OPT.seconds.preview * n) });
+  $("est-f").textContent = T("about", { t: fmt(OPT.seconds.final * n) });
+  ["b-preview", "b-final", "b-vary"].forEach(b => $(b).disabled = !picked().length || !!JOB);
+}
+
+// ---- render ---------------------------------------------------------------------------------------------
+function sceneData() {
+  const materials = {};
+  document.querySelectorAll(".mat").forEach(row => {
+    const mat = row.querySelector("[data-mat]").value;
+    materials[row.dataset.g] = { material: mat, option: mat === "ignore" ? null : row.querySelector("[data-opt]").value };
+  });
+  const facings = {};
+  document.querySelectorAll("[data-facing]").forEach(s => { if (s.value) facings[s.dataset.facing] = s.value; });
+  return { building: $("building").value, setting: $("setting").value, season: $("season").value,
+    people: $("people").value, vehicles: $("vehicles").value,
+    time: segVal($("time")), front: segVal($("front")) || "S", wall: [$("wall-mat").value, $("wall-opt").value],
+    note: $("note").value, seed, materials, facings, picked: picked() };
+}
+async function start(final) {
+  const missing = [...document.querySelectorAll("[data-facing]")].filter(s => !s.value &&
+    document.querySelector(`[data-pick="${s.dataset.facing}"]`)?.checked);
+  if (missing.length) { $("runerr").textContent = T("needfacing"); $("runerr").classList.remove("hidden"); return; }
+  $("runerr").classList.add("hidden"); lastFinal = final;
+  try {
+    const r = await api(`/api/projects/${PROJ.id}/render`, { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ scene: sceneData(), views: picked(), final, lang: LANG }) });
+    JOB = r.job; estimates(); $("run").classList.remove("hidden"); poll();
+  } catch (e) { $("runerr").textContent = e.message; $("runerr").classList.remove("hidden"); }
+}
+async function poll() {
+  if (!JOB) return;
+  const j = await api(`/api/jobs/${JOB}`);
+  $("bar").style.width = `${Math.round(j.progress * 100)}%`;
+  $("runmsg").textContent = j.message;
+  const left = Math.max(0, j.estimate - j.elapsed);
+  $("runtime").textContent = j.state === "running"
+    ? `${T("elapsed", { t: clock(j.elapsed) })}${j.progress < .95 && left > 0 ? ", " + T("left", { t: fmt(left) }) : ""}` : "";
+  if (["done", "error", "cancelled"].includes(j.state)) {
+    JOB = null; estimates(); $("run").classList.add("hidden");
+    if (j.state === "done") { lastResult = j.result; showResult(j.result); $("s-result").scrollIntoView({ behavior: "smooth" }); }
+    else { $("runerr").textContent = j.message; $("runerr").classList.remove("hidden"); }
+    return;
+  }
+  setTimeout(poll, 1500);
+}
+function showResult(r) {
+  $("s-result").classList.remove("hidden");
+  $("result-sub").textContent = lastFinal ? T("resfinal") : T("respreview");
+  const t = `?t=${Date.now()}`;
+  $("sheet").src = r.sheet + t;
+  $("dl-pdf").href = r.pdf; $("dl-png").href = r.sheet; $("dl-zip").href = r.zip;
+  $("gallery").innerHTML = r.images.map((i, k) => {
+    const fid = i.fidelity == null ? "" : `<span class="fid ${i.grade}">${T("fid", { p: Math.round(i.fidelity * 100) })}` +
+      `<button class="link" data-diff="${k}">${T("showdiff")}</button></span>`;
+    return `<figure><img id="g${k}" src="${i.url}${t}" alt=""><figcaption><b>${i.title}</b>${I18N[LANG].light[i.light] || ""}${fid}</figcaption></figure>`;
+  }).join("");
+  const any = r.images.some(i => i.fidelity != null);
+  $("fidnote").textContent = any ? T("fidnote") + (r.images.some(i => i.grade === "poor") ? T("fidpoor") : "") : "";
+}
+function toggleDiff(k) {
+  const i = lastResult.images[k], img = $("g" + k), btn = document.querySelector(`[data-diff="${k}"]`);
+  const on = !img.dataset.diff;
+  img.src = (on ? i.drift : i.url) + `?t=${Date.now()}`;
+  if (on) img.dataset.diff = "1"; else delete img.dataset.diff;
+  btn.textContent = T(on ? "hidediff" : "showdiff");
+}
+$("b-preview").onclick = () => start(false);
+$("b-final").onclick = () => start(true);
+$("b-vary").onclick = () => { seed += 1; start(false); };
+$("b-cancel").onclick = () => JOB && api(`/api/jobs/${JOB}/cancel`, { method: "POST" });
+document.addEventListener("click", (e) => {
+  const fb = e.target.closest("[data-diff]");
+  if (fb) { toggleDiff(+fb.dataset.diff); return; }
+  const img = e.target.closest(".sheet, .gallery img");
+  if (img) { $("lightbox").querySelector("img").src = img.src; $("lightbox").classList.remove("hidden"); }
+  else if (e.target.closest("#lightbox")) $("lightbox").classList.add("hidden");
+});
+init();
+</script>
+</body>
+</html>

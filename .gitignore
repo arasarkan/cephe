@@ -1,0 +1,8 @@
+.venv/
+projects/
+__pycache__/
+*.log
+config.json
+tests/_sample.dxf
+.pytest_cache/
+runtime/

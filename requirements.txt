@@ -1,0 +1,5 @@
+ezdxf>=1.4
+scipy
+flask
+pillow
+numpy
