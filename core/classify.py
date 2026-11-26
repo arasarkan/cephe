@@ -38,8 +38,16 @@ def parse_title(text):
     return kind, facing
 
 
+_WORDY = re.compile(r"[A-Za-zÇĞİÖŞÜçğıöşü]{3,}")
+
+
+def _is_title_text(text):
+    """Could this be a view title? Not a number, a level mark (+18.65) or a dimension (2130)."""
+    return bool(_WORDY.search(text))
+
+
 def _title_score(view: View, label):
-    """Lower is better: titles sit under (or over) their drawing, roughly centered, in larger text."""
+    """Lower is better: titles sit under (or over) their drawing, roughly centered."""
     x0, y0, x1, y1 = view.bbox
     w, h = x1 - x0, y1 - y0
     if not (x0 - 0.3 * w <= label.x <= x1 + 0.3 * w):
@@ -50,7 +58,8 @@ def _title_score(view: View, label):
         d = (label.y - y1) / h + 0.15  # above: slightly less likely
     else:
         return None
-    return d - 0.2 * bool(parse_title(label.text)[0])
+    off_center = abs(label.x - (x0 + x1) / 2) / max(w, 1e-9)
+    return d + 0.5 * off_center - 0.2 * bool(parse_title(label.text)[0])
 
 
 def guess_kind(view: View):
@@ -65,20 +74,27 @@ def guess_kind(view: View):
 
 
 def classify_views(sheet, labels):
-    used = set()
-    for v in sheet.views:
-        cands = [(sc, i, lb) for i, lb in enumerate(labels)
-                 if i not in used and (sc := _title_score(v, lb)) is not None]
-        if cands:
-            # prefer labels that name a view; among those the nearest
-            named = [c for c in cands if parse_title(c[2].text)[0]] or cands
-            sc, i, lb = min(named, key=lambda c: c[0])
-            used.add(i)
+    """Pair views with their titles. Best pairs first across the whole sheet (not view by view), so a wide
+    view can't take its neighbor's title; labels that name a view ("KUZEY CEPHE") before other wordy text."""
+    labels = [lb for lb in labels if _is_title_text(lb.text)]
+    taken_v, taken_l = set(), set()
+    for named in (True, False):
+        pairs = sorted((sc, vi, li) for vi, v in enumerate(sheet.views) for li, lb in enumerate(labels)
+                       if bool(parse_title(lb.text)[0]) == named and (sc := _title_score(v, lb)) is not None)
+        for sc, vi, li in pairs:
+            if vi in taken_v or li in taken_l:
+                continue
+            taken_v.add(vi)
+            taken_l.add(li)
+            v, lb = sheet.views[vi], labels[li]
             v.title = re.sub(r"\s+", " ", lb.text).strip()
-            kind, facing = parse_title(lb.text)
-            v.kind, v.facing = kind or guess_kind(v), facing
-        else:
-            v.kind = guess_kind(v)
+            v.kind, v.facing = parse_title(lb.text)
+    # Without a naming title, guess from the drawing - but only on sheets that don't name their views:
+    # where they do, an unnamed piece is a detail, a table or a structural drawing, not a facade.
+    names_views = any(v.kind for v in sheet.views)
+    for v in sheet.views:
+        if not v.kind:
+            v.kind = "unknown" if names_views else guess_kind(v)
     return sheet
 
 

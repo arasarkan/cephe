@@ -27,7 +27,7 @@ SKIP_TYPES = {
 TEXT_TYPES = {"TEXT", "MTEXT", "ATTRIB", "ATTDEF"}
 # Layer names (English + Turkish office conventions) that hold annotation, not building geometry.
 DEFAULT_EXCLUDE = (r"dim|[öo]l[çc][üu]|text|yaz[ıi]|^not|anno|hatch|tara|aks|axis|grid|kot|level|"
-                   r"pafta|title|frame|[çc]er[çc]eve|defpoints|vport|viewport|mobil|furn|kesit.?[çc]izgi|"
+                   r"pafta|title|frame|[çc]er[çc]eve|defpoints|vport|viewport|mobil|furn|kesit.?[çc]izgi|kesik|"
                    r"section.?line|symbol|sembol")
 DASHED = re.compile(r"center|dash|hidden|phantom|dot|aks|axis|gizli|kesik", re.I)
 INSUNITS_PER_M = {1: 39.37, 2: 3.281, 4: 1000.0, 5: 100.0, 6: 1.0, 14: 10.0}  # in, ft, mm, cm, m, dm
@@ -209,13 +209,16 @@ def hatches_of(flt):
 
 
 def units_per_m(doc, views):
-    """Drawing units per meter: from $INSUNITS when it is plausible, else guessed from building size
-    (a facade is 3-150 m high)."""
-    biggest = max(views, key=lambda v: v.width * v.height) if views else None
-    size = max(biggest.width, biggest.height) if biggest else 0
+    """Drawing units per meter: from $INSUNITS when it is plausible, else guessed from building size.
+    The size is a typical drawing on the sheet (median of the sizeable ones, so a site plan or a detail
+    doesn't decide): a building plan or elevation is 5-300 m across. Many offices draw in cm while
+    $INSUNITS says mm."""
+    big = max((v.width * v.height for v in views), default=0)
+    sizes = sorted(max(v.width, v.height) for v in views if v.width * v.height >= 0.1 * big)
+    size = sizes[len(sizes) // 2] if sizes else 0
 
     def plausible(upm):
-        return 2 <= size / upm <= 500  # a drawing 2-500 m across
+        return 5 <= size / upm <= 300
     declared = INSUNITS_PER_M.get(doc.header.get("$INSUNITS", 0))
     if declared and plausible(declared):
         return declared

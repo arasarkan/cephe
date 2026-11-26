@@ -1,7 +1,6 @@
 """Geometry on the sheet: separating drawings, framing a view at a common scale, rasterizing lines and
 locating material zones in the raster."""
 import math
-from collections import deque
 
 from .sheet import View
 
@@ -22,53 +21,151 @@ def drop_frames(strokes):
     return keep if len(keep) > 0.5 * len(strokes) else strokes
 
 
-def split_views(strokes, grid=500, gap=0.012, min_share=0.04):
-    """Find separate drawings in model space: rasterize to a coarse grid, close small gaps, label
-    connected regions. Returns [(bbox, [strokes])], largest first."""
+def _components(strokes, grid=4000, pad=2):
+    """Group strokes that touch or nearly touch: rasterize onto a grid of `grid` cells across the longest
+    side, grow by `pad` cells, label connected regions. Returns [[strokes]]."""
+    import numpy as np
+    from scipy import ndimage
     x0, y0, x1, y1 = extents(strokes)
     span = max(x1 - x0, y1 - y0) or 1
     cell = span / grid
     nx, ny = int((x1 - x0) / cell) + 1, int((y1 - y0) / cell) + 1
-    pad = max(1, int(gap * grid))
-    occ = bytearray(nx * ny)
-
-    def mark(px, py):
-        for gx in range(max(0, px - pad), min(nx, px + pad + 1)):
-            for gy in range(max(0, py - pad), min(ny, py + pad + 1)):
-                occ[gy * nx + gx] = 1
-
-    cells_of = []
+    occ = np.zeros((ny, nx), bool)
+    first = []
     for s in strokes:
-        cs = set()
-        for (ax, ay), (bx, by) in zip(s.pts, s.pts[1:]):
-            n = max(1, int(math.hypot(bx - ax, by - ay) / cell))
-            for k in range(n + 1):
-                cs.add((int((ax + (bx - ax) * k / n - x0) / cell), int((ay + (by - ay) * k / n - y0) / cell)))
-        for c in cs:
-            mark(*c)
-        cells_of.append(next(iter(cs)))
-
-    label = [0] * (nx * ny)
-    n_labels = 0
-    for start in range(nx * ny):
-        if occ[start] and not label[start]:
-            n_labels += 1
-            label[start] = n_labels
-            q = deque([start])
-            while q:
-                i = q.popleft()
-                x = i % nx
-                for j in (i - 1 if x > 0 else -1, i + 1 if x < nx - 1 else -1, i - nx, i + nx):
-                    if 0 <= j < nx * ny and occ[j] and not label[j]:
-                        label[j] = n_labels
-                        q.append(j)
+        p = np.asarray(s.pts, np.float64)
+        seg = np.hypot(*np.diff(p, axis=0).T) if len(p) > 1 else np.zeros(0)
+        pts = [p[:1]]
+        for (a, b), L in zip(zip(p, p[1:]), seg):
+            t = np.linspace(0, 1, max(2, int(L / cell) + 2))[:, None]
+            pts.append(a + (b - a) * t)
+        q = np.concatenate(pts)
+        cx = np.clip(((q[:, 0] - x0) / cell).astype(int), 0, nx - 1)
+        cy = np.clip(((q[:, 1] - y0) / cell).astype(int), 0, ny - 1)
+        occ[cy, cx] = True
+        first.append((cy[0], cx[0]))
+    grown = ndimage.binary_dilation(occ, np.ones((2 * pad + 1, 2 * pad + 1), bool))
+    labels, _ = ndimage.label(grown)
     groups = {}
-    for s, (cx, cy) in zip(strokes, cells_of):
-        groups.setdefault(label[cy * nx + cx], []).append(s)
-    views = [(extents(g), g) for g in groups.values()]
-    views.sort(key=lambda v: (v[0][2] - v[0][0]) * (v[0][3] - v[0][1]), reverse=True)
-    biggest = (views[0][0][2] - views[0][0][0]) * (views[0][0][3] - views[0][0][1]) if views else 1
-    return [v for v in views if (v[0][2] - v[0][0]) * (v[0][3] - v[0][1]) >= min_share * biggest]
+    for s, (cy, cx) in zip(strokes, first):
+        groups.setdefault(labels[cy, cx], []).append(s)
+    return list(groups.values())
+
+
+def _frame_segments(group, box=None):
+    """Per stroke: is it a frame line of this box - along an edge, or a divider straight across it?"""
+    x0, y0, x1, y1 = box or extents(group)
+    w, h = (x1 - x0) or 1, (y1 - y0) or 1
+    tol = 0.01 * max(w, h)
+    out = []
+    for s in group:
+        total = edge = 0.0
+        for (ax, ay), (bx, by) in zip(s.pts, s.pts[1:]):
+            L = math.hypot(bx - ax, by - ay)
+            total += L
+            on_edge = ((abs(ax - x0) < tol and abs(bx - x0) < tol) or (abs(ax - x1) < tol and abs(bx - x1) < tol)
+                       or (abs(ay - y0) < tol and abs(by - y0) < tol) or (abs(ay - y1) < tol and abs(by - y1) < tol))
+            across = (abs(ax - bx) < tol and abs(by - ay) > 0.8 * h) or (abs(ay - by) < tol and abs(bx - ax) > 0.8 * w)
+            if on_edge or across:
+                edge += L
+        out.append((s, total, edge))
+    return out
+
+
+def _is_frame(group):
+    """A sheet frame, panel dividers or a title-block table: most of its line length runs along the edges
+    of its own box or straight across it."""
+    segs = _frame_segments(group)
+    total = sum(t for _, t, _ in segs)
+    return total > 0 and sum(e for _, _, e in segs) / total > 0.5
+
+
+def _overlap(a, b):
+    return max(0.0, min(a[2], b[2]) - max(a[0], b[0])) * max(0.0, min(a[3], b[3]) - max(a[1], b[1]))
+
+
+def _inside(a, b):
+    return a[0] >= b[0] and a[1] >= b[1] and a[2] <= b[2] and a[3] <= b[3]
+
+
+def _peel_frames(groups):
+    """A piece whose box holds two or more sizeable drawings is a sheet (frame, dividers, title block, maybe
+    drawings touching the frame), not a drawing: strip its long frame lines and split what's left again."""
+    for _ in range(4):
+        boxes = [extents(g) for g in groups]
+        changed = False
+        for i, g in enumerate(groups):
+            held = [j for j, b in enumerate(boxes) if j != i and _inside(b, boxes[i])
+                    and 0 < 0.02 * _area(boxes[i]) <= _area(b) <= 0.3 * _area(boxes[i])]
+            if len(held) < 2:
+                continue
+            x0, y0, x1, y1 = boxes[i]
+            long_side = 0.5 * min(x1 - x0, y1 - y0)
+            rest = [s for s, total, edge in _frame_segments(g) if not (edge > 0.5 * total and edge >= long_side)]
+            groups = groups[:i] + groups[i + 1:] + (_components(rest) if rest else [])
+            changed = True
+            break
+        if not changed:
+            break
+    return groups
+
+
+def _area(bb):
+    return max(0.0, bb[2] - bb[0]) * max(0.0, bb[3] - bb[1])
+
+
+def _belongs(small, big):
+    """Is `small` a piece of the drawing `big` (furniture inside a plan, a roof part just above a facade)
+    rather than a drawing of its own next to it?"""
+    if _inside(small, big):  # inner walls inside a plan outline, furniture, panes
+        return True
+    if _area(small) >= 0.25 * _area(big):  # a drawing of similar size beside it is a neighbor, never a piece
+        return False
+    ix = min(small[2], big[2]) - max(small[0], big[0])
+    iy = min(small[3], big[3]) - max(small[1], big[1])
+    if ix > 0 and iy > 0 and ix * iy >= 0.3 * _area(small):
+        return True
+    gap = max(small[0] - big[2], big[0] - small[2], small[1] - big[3], big[1] - small[3])
+    return gap < 0.03 * max(big[2] - big[0], big[3] - big[1])
+
+
+def split_views(strokes, min_share=0.04):
+    """Find separate drawings in model space. Returns [(bbox, [strokes])], largest first.
+
+    Real sheets put many drawings close together inside a frame with a title block, sometimes several sheets
+    far apart in one file. So: split finely (per far-apart cluster, so one stray entity doesn't coarsen the
+    grid), drop frames and title-block tables, then put each drawing's loose pieces back together."""
+    groups = []
+    for cluster in _components(strokes, grid=400, pad=4):
+        groups += _peel_frames(_components(cluster)) if len(cluster) > 1 else [cluster]
+    if len(groups) > 1:
+        # Frames: edge-dominated pieces holding two or more drawings that are each much smaller than the frame.
+        # (A window outline holds its pane, a plain plan outline its inner walls: one big piece, not a sheet.)
+        bxs = [extents(g) for g in groups]
+        holds = [sum(1 for j, b in enumerate(bxs) if j != i and _overlap(b, bxs[i]) >= 0.5 * _area(b)
+                     and 0 < 0.01 * _area(bxs[i]) <= _area(b) <= 0.3 * _area(bxs[i])) for i in range(len(groups))]
+        kept = [g for g, n in zip(groups, holds) if not (n >= 2 and _is_frame(g) and len(g) < 0.5 * len(strokes))]
+        groups = kept or groups
+    # Merge loose pieces into the drawing they belong to. Pieces are judged against each drawing's original
+    # box, not its grown one: otherwise a drawing that takes in a ground line reaches its neighbor and swallows
+    # it, and the whole row snowballs into one view.
+    cores = [extents(g) for g in groups]
+    owner = list(range(len(groups)))
+    order = sorted(range(len(groups)), key=lambda i: _area(cores[i]), reverse=True)
+    for si in reversed(order):  # smallest pieces first, each to the best (largest) core it belongs to
+        for bi in order:
+            if bi != si and owner[bi] == bi and _area(cores[si]) <= _area(cores[bi]) and _belongs(cores[si], cores[bi]):
+                owner[si] = bi
+                break
+    merged = {}
+    for i, g in enumerate(groups):
+        root = i
+        while owner[root] != root:
+            root = owner[root]
+        merged.setdefault(root, []).extend(g)
+    views = sorted(((extents(g), g) for g in merged.values()), key=lambda v: _area(v[0]), reverse=True)
+    biggest = _area(views[0][0]) if views else 1
+    return [v for v in views if _area(v[0]) >= min_share * biggest]
 
 
 def padded(view: View, margin=MARGIN):

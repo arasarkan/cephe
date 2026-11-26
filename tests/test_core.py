@@ -237,3 +237,39 @@ def test_shade_grade_darkens_the_building_not_the_surroundings(tmp_path):
     assert out[140, 200] < 0.8 * 200          # the facade is in shade
     assert out[230, 200] < out[290, 200]      # its shadow on the ground fades away from it
     assert abs(out[30, 30] - 200) < 2 and abs(out[150, 20] - 200) < 2  # sky and sunlit surroundings untouched
+
+
+def test_office_sheet_with_frame_and_close_drawings(tmp_path):
+    """Like a real office DWG: a row of drawings inside a sheet frame with a title block, terrain lines that
+    nearly touch the next drawing, and cm drawings in a file whose $INSUNITS says mm."""
+    import ezdxf
+    from core.inputs import dwg
+    doc = ezdxf.new()
+    doc.header["$INSUNITS"] = 4  # mm, but drawn in cm
+    msp = doc.modelspace()
+
+    def facade(x, title):
+        msp.add_lwpolyline([(x, 0), (x + 2000, 0), (x + 2000, 1800), (x, 1800)], close=True)
+        for fy in range(300, 1800, 300):  # floor lines and windows
+            msp.add_line((x, fy), (x + 2000, fy))
+            for wx in range(200, 2000, 400):
+                msp.add_lwpolyline([(x + wx, fy - 250), (x + wx + 150, fy - 250), (x + wx + 150, fy - 100),
+                                    (x + wx, fy - 100)], close=True)
+        msp.add_line((x - 600, -20), (x + 2600, -20))  # terrain, running out toward the neighbors
+        msp.add_text(title, height=60).set_placement((x + 700, -300))
+
+    for i, t in enumerate(["GÜNEY CEPHE Ö:1/50", "BATI CEPHE Ö:1/50", "KUZEY CEPHE Ö:1/50"]):
+        facade(i * 3250, t)  # 1250 apart; terrain lines end 50 units from each other
+    msp.add_text("+18.65", height=40).set_placement((7000, 2000))  # a level mark, not a title
+    x0, y0, x1, y1 = -1500, -800, 10500, 2600  # sheet frame, divider and title block
+    for a, b in [((x0, y0), (x1, y0)), ((x1, y0), (x1, y1)), ((x1, y1), (x0, y1)), ((x0, y1), (x0, y0)),
+                 ((9500, y0), (9500, y1)), ((9500, 0), (x1, 0)), ((9500, 300), (x1, 300))]:
+        msp.add_line(a, b)
+    f = tmp_path / "office.dxf"
+    doc.saveas(f)
+    sheet = dwg.read(f)
+    facades = sorted((v.title.split()[0], v.facing) for v in sheet.views if v.kind == "elevation")
+    assert facades == [("BATI", "W"), ("GÜNEY", "S"), ("KUZEY", "N")]
+    assert sheet.units_per_m == 100.0
+    widths = sorted(round(v.width / sheet.units_per_m) for v in sheet.views if v.kind == "elevation")
+    assert widths == [32, 32, 32]  # each facade with its own terrain line, none merged with a neighbor
